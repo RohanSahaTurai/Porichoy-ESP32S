@@ -2,7 +2,7 @@
 
 // setting PWM properties
 static const int FREQ = 500;
-static const int LEDChannel[3] = {0 , 1, 2};
+static const int LEDChannel[3] = {1 , 2, 3};
 static const int Resolution = 8;
 
 // RGB colour oponent of each colour

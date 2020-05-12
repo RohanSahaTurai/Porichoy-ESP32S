@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include "LED.hpp"
 #include "Sonar.hpp"
+#include "camera.hpp"
 
 const char* WIFI_SSID     = "Rohan Hotspot";
 const char* WIFI_PASSWORD = "01747910";
@@ -10,6 +11,9 @@ const char* WIFI_PASSWORD = "01747910";
 const char* ServerIP   = "142.93.62.203";
 const char* ClientID   = "Rohan-ESP32CAM";
 const int   PortServer =  1883;
+
+const char* MQTT_SUB_TOPIC = "";
+const char* MQTT_PUB_TOPIC = "Sonar";
 
 WiFiClient ESPClient;
 PubSubClient MQTTClient(ServerIP, PortServer, ESPClient);
@@ -64,12 +68,15 @@ void setup()
   Serial.println("ESP32-S started successfully.");
 
   LED_Init();
+  Sonar_Init();
+
+  while (!Camera_Init())
+    delay(1000);
 
   WiFi_Connect();
 
   MQTT_Connect();
   
-  Sonar_Init();
 }
 
 /* TODO: WiFi gets disconnected after a while. Fix it */
@@ -100,7 +107,7 @@ void loop()
 
       buffer.toCharArray(payload, buffer.length()+1);
 
-      if (MQTTClient.publish("Sonar Data", payload))
+      if (MQTTClient.publish(MQTT_PUB_TOPIC, payload))
         Serial.println("Message Sent!");
   }
 
