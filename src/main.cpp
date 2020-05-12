@@ -63,11 +63,11 @@ void setup()
   Serial.begin(115200);
   Serial.println("ESP32-S started successfully.");
 
+  LED_Init();
+
   WiFi_Connect();
 
   MQTT_Connect();
-
-  LED_Init();
   
   Sonar_Init();
 }
