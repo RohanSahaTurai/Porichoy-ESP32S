@@ -24,6 +24,11 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
+// Prefered frame size
+// The frame size will only be activated if PSRAM is detected
+// Otherwise, frame size is dropped to VGA by default
+const framesize_t FRAME_SIZE = FRAMESIZE_SVGA;
+
 //Flash configuration
 #define FLASH_PIN   4
 const int FlashBrightness = 10; //0-255, brightest 255

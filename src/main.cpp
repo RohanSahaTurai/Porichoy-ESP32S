@@ -1,14 +1,17 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <PubSubClient.h>
 #include "LED.hpp"
 #include "Sonar.hpp"
 #include "camera.hpp"
 
+//Maximum packet size = 50 KiB
+#define MQTT_MAX_PACKET_SIZE 51200
+#include <PubSubClient.h>
+
 const char* WIFI_SSID     = "Rohan Hotspot";
 const char* WIFI_PASSWORD = "01747910";
 
-const char* ServerIP   = "142.93.62.203";
+const char* ServerIP   = "test.mosquitto.org";
 const char* ClientID   = "Rohan-ESP32CAM";
 const int   PortServer =  1883;
 
@@ -82,8 +85,8 @@ void setup()
 /* TODO: WiFi gets disconnected after a while. Fix it */
 void loop() 
 {
-  char   payload[256];
   String buffer;
+  camera_fb_t *fb = NULL;
 
   LED_On(LED_BLUE);
 
@@ -103,12 +106,25 @@ void loop()
   if (distance <= ActivateLEDDistance && distance != -1)
   {
       LED_On(LED_GREEN);
-      Serial.println("Green LED Turned On.");
+      //Serial.println("Green LED Turned On.");
 
-      buffer.toCharArray(payload, buffer.length()+1);
+      if (Camera_Capture(&fb))
+      {
+        const uint8_t* fbPayload = (uint8_t*)fb->buf;
+        size_t fbSize = fb->len;
 
-      if (MQTTClient.publish(MQTT_PUB_TOPIC, payload))
-        Serial.println("Message Sent!");
+        Serial.println("Size = "+ String(fbSize));
+
+        // Start Publishing
+        MQTTClient.beginPublish(MQTT_PUB_TOPIC, fbSize, false);
+        // Write the frame buffer content in the packet 
+        MQTTClient.write(fbPayload, fbSize);
+        // Check if the the publishing is finsied
+        if (MQTTClient.endPublish())
+           Serial.println("Frame Sent!");
+  
+        Camera_FreeFrameBuffer(&fb);
+      }
   }
 
   // Sampling time of 500ms

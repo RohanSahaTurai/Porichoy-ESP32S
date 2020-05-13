@@ -39,13 +39,13 @@ bool Camera_Init()
     //init with high specs to pre-allocate larger buffers
     if(psramFound())
     {
-        config.frame_size   = FRAMESIZE_UXGA;
+        config.frame_size   = FRAME_SIZE;
         config.jpeg_quality = 10;
         config.fb_count     = 2;
     } 
     else 
     {
-        config.frame_size   = FRAMESIZE_SVGA;
+        config.frame_size   = FRAMESIZE_VGA;
         config.jpeg_quality = 12;
         config.fb_count     = 1;
     }
