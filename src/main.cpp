@@ -68,6 +68,7 @@ void setup()
   Serial.println("ESP32-S started successfully.");
 
   LED_Init();
+
   Sonar_Init();
 
   while (!Camera_Init())
@@ -76,7 +77,6 @@ void setup()
   WiFi_Connect();
 
   MQTT_Connect();
-  
 }
 
 /* TODO: WiFi gets disconnected after a while. Fix it */

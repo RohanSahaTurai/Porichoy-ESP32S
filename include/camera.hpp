@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <esp_camera.h>
+#include <esp32-hal-ledc.h>
 
 // Pin definition for CAMERA_MODEL_AI_THINKER
 #define PWDN_GPIO_NUM     32
@@ -23,7 +24,17 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
+//Flash configuration
+#define FLASH_PIN   4
+const int FlashBrightness = 10; //0-255, brightest 255
 
 bool Camera_Init();
+
+// Captures a frame
+bool Camera_Capture(camera_fb_t **frameBuffer);
+
+// Frees the allocated memory.
+// Must be called after the data in the frameBuffer has been processed.
+bool Camera_FreeFrameBuffer(camera_fb_t **frameBuffer);
 
 #endif

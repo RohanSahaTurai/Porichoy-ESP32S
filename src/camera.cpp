@@ -1,5 +1,10 @@
 #include <camera.hpp>
 
+// setting PWM properties for falash
+static const int FREQ = 500;
+static const int FLASH_LEDChannel = 4;
+static const int Resolution = 8;
+
 bool Camera_Init()
 {
     camera_config_t config = 
@@ -54,7 +59,40 @@ bool Camera_Init()
         return false;
     }
 
+    // Initialize the flash
+    ledcSetup(FLASH_LEDChannel, FREQ, Resolution);
+    ledcAttachPin(FLASH_PIN, FLASH_LEDChannel);
+    ledcWrite(FLASH_LEDChannel, 0); //turn off flash initially
+
     Serial.println("Camera Initialized!");
 
+    return true;
+}
+
+bool Camera_Capture(camera_fb_t **frameBuffer)
+{
+    //turn on the flash
+    ledcWrite(FLASH_LEDChannel, FlashBrightness);
+    delay(300);
+
+    *frameBuffer = esp_camera_fb_get();
+
+    ledcWrite(FLASH_LEDChannel, 0); //turn off the flash
+
+    if (!(*frameBuffer))
+    {
+        Serial.println("Camera capture failed.");
+        return false;
+    }
+
+    Serial.println("Frame captured.");
+    return true;
+}
+
+bool Camera_FreeFrameBuffer(camera_fb_t **frameBuffer)
+{
+    if (!(*frameBuffer))
+        esp_camera_fb_return(*frameBuffer);
+    
     return true;
 }
