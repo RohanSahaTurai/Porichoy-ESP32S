@@ -18,7 +18,8 @@ typedef struct
 }TLED;
 
 // available colours by default
-extern TLED LED_BLUE, LED_GREEN, LED_RED, LED_YELLOW;
+extern TLED LED_BLUE, LED_GREEN, LED_RED, 
+            LED_YELLOW, LED_PURPLE, LED_AQUA, LED_WHITE;
 
 bool LED_Init(void);
 

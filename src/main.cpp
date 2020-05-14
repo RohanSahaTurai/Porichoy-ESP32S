@@ -16,12 +16,12 @@ const char* ClientID   = "Rohan-ESP32CAM";
 const int   PortServer =  1883;
 
 const char* MQTT_SUB_TOPIC = "";
-const char* MQTT_PUB_TOPIC = "Sonar";
+const char* MQTT_PUB_TOPIC = "Image";
 
 WiFiClient ESPClient;
 PubSubClient MQTTClient(ServerIP, PortServer, ESPClient);
 
-const int ActivateLEDDistance = 20;
+const int CaptureDistance = 40;
 const int SampleTime = 500;
 
 void WiFi_Connect()
@@ -71,13 +71,16 @@ void setup()
   Serial.println("ESP32-S started successfully.");
 
   LED_Init();
-
   Sonar_Init();
-
+  
   while (!Camera_Init())
     delay(1000);
+  
+  LED_On(LED_WHITE);
 
   WiFi_Connect();
+  
+  LED_On(LED_AQUA);
 
   MQTT_Connect();
 }
@@ -88,13 +91,13 @@ void loop()
   String buffer;
   camera_fb_t *fb = NULL;
 
-  LED_On(LED_BLUE);
-
   // Check if the WiFi and MQTT broker is still connected
   if (WiFi.status() != WL_CONNECTED)
     WiFi_Connect();
   if (!MQTTClient.connected())
     MQTT_Connect();
+
+  LED_On(LED_BLUE);
 
   int distance = Sonar_GetDistance();
   
@@ -103,17 +106,16 @@ void loop()
   Serial.println(buffer);
 
   // Check if distance is valid
-  if (distance <= ActivateLEDDistance && distance != -1)
+  if (distance <= CaptureDistance && distance != -1)
   {
-      LED_On(LED_GREEN);
-      //Serial.println("Green LED Turned On.");
+      LED_On(LED_YELLOW);
 
       if (Camera_Capture(&fb))
       {
         const uint8_t* fbPayload = (uint8_t*)fb->buf;
         size_t fbSize = fb->len;
 
-        Serial.println("Size = "+ String(fbSize));
+        Serial.println("Size = "+ String(fbSize)+" bytes");
 
         // Start Publishing
         MQTTClient.beginPublish(MQTT_PUB_TOPIC, fbSize, false);
@@ -129,4 +131,6 @@ void loop()
 
   // Sampling time of 500ms
   delay(SampleTime);
+
+  LED_On(LED_WHITE);
 }

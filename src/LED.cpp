@@ -6,10 +6,13 @@ static const int LEDChannel[3] = {1 , 2, 3};
 static const int Resolution = 8;
 
 // RGB colour oponent of each colour
-TLED LED_BLUE   = {0, 0, 255},
-     LED_RED    = {255, 0, 0},
-     LED_GREEN  = {0, 255, 0},
-     LED_YELLOW = {255, 255, 51};
+TLED LED_BLUE   = {0  , 0  , 255},
+     LED_RED    = {255, 0  , 0  },
+     LED_GREEN  = {0  , 255, 0  },
+     LED_YELLOW = {255, 255, 0  },
+     LED_AQUA   = {0  , 255, 255},
+     LED_PURPLE = {80 , 0  ,  80},
+     LED_WHITE  = {255, 255, 255};
 
 bool LED_Init()
 {   
