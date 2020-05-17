@@ -6,6 +6,8 @@
 
 //Maximum packet size = 50 KiB
 #define MQTT_MAX_PACKET_SIZE 51200
+#define MQTT_KEEPALIVE 60
+#define MQTT_SOCKET_TIMEOUT 60
 #include <PubSubClient.h>
 
 const char* WIFI_SSID     = "Rohan Hotspot";
