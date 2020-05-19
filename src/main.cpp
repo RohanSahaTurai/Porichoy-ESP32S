@@ -6,14 +6,14 @@
 
 //Maximum packet size = 50 KiB
 #define MQTT_MAX_PACKET_SIZE 51200
-#define MQTT_KEEPALIVE 60
-#define MQTT_SOCKET_TIMEOUT 60
+#define MQTT_KEEPALIVE 3600
+#define MQTT_SOCKET_TIMEOUT 3600
 #include <PubSubClient.h>
 
 const char* WIFI_SSID     = "Rohan Hotspot";
 const char* WIFI_PASSWORD = "01747910";
 
-const char* ServerIP   = "test.mosquitto.org";
+const char* ServerIP   = "142.93.62.203";
 const char* ClientID   = "Rohan-ESP32CAM";
 const int   PortServer =  1883;
 
@@ -23,8 +23,8 @@ const char* MQTT_PUB_TOPIC = "Image";
 WiFiClient ESPClient;
 PubSubClient MQTTClient(ServerIP, PortServer, ESPClient);
 
-const int CaptureDistance = 40;
-const int SampleTime = 500;
+const int CaptureDistance = 40;   //40cm
+const int SampleTime = 500;       //500ms
 
 void WiFi_Connect()
 {
@@ -47,6 +47,8 @@ void WiFi_Connect()
 
 void MQTT_Connect()
 {   
+    MQTTClient.disconnect();
+    
     Serial.print("Connecting to MQTT broker on ");
     Serial.println(ServerIP);
 
@@ -128,6 +130,9 @@ void loop()
            Serial.println("Frame Sent!");
   
         Camera_FreeFrameBuffer(&fb);
+
+        // delay at least 5 seconds before next frame is captured
+        delay(5000);
       }
   }
 
