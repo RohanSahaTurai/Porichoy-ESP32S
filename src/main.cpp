@@ -28,7 +28,9 @@ void callback(char* topic, byte* payload, unsigned int length);
 WiFiClient ESPClient;
 PubSubClient MQTTClient(ServerIP, PortServer, callback, ESPClient);
 
-const int CaptureDistance = 40;   //40cm
+const int Min_Capture_Dist = 25;   //25cm
+const int Max_Capture_Dist = 40;   //40cm
+
 const int SampleTime = 500;       //500ms
 const int ACK_TIMEOUT = 30000;     //30000ms = 30s
 
@@ -160,8 +162,8 @@ void loop()
   
   Serial.println(buffer);
 
-  // Check if distance is valid
-  if (distance <= CaptureDistance && distance != -1)
+  // Check if distance is within the capture range
+  if (distance >= Min_Capture_Dist && distance <= Max_Capture_Dist)
   {
       LED_On(LED_WHITE);
 
