@@ -1,10 +1,24 @@
+/*! @file  camera.cpp
+ *
+ *  @brief Routines for operating the OV2640 camera module
+ *
+ *  This contains the functions needed for operating the camera module in ESP32-CAM
+ *
+ *  @author Rohan
+ *  @date 2020-06-03
+ */
 #include <camera.hpp>
 
-// setting PWM properties for falash
-static const int FREQ = 500;
-static const int FLASH_LEDChannel = 4;
-static const int Resolution = 8;
+// setting PWM properties for flash
+static const int FREQ = 500;                /*!< PWM Signal Frequency*/
+static const int FLASH_LEDChannel = 4;      /*!< Timer Channel attached with the flash*/
+static const int Resolution = 8;            /*!< Resolution of the PWM duty cycle*/
 
+
+/*! @brief Initializes the camera and the flash 
+ *
+ *  @return bool - TRUE if initialization is successful
+ */
 bool Camera_Init()
 {
     camera_config_t config = 
@@ -69,6 +83,12 @@ bool Camera_Init()
     return true;
 }
 
+
+/*! @brief When the function is called, the camera captures a frame
+ *
+ *  @param  frameBuffer - pointer to the start of the frameBuffer
+ *  @return bool - TRUE if the frame is captured successfully
+ */
 bool Camera_Capture(camera_fb_t **frameBuffer)
 {
     //turn on the flash
@@ -89,6 +109,13 @@ bool Camera_Capture(camera_fb_t **frameBuffer)
     return true;
 }
 
+
+/*! @brief  Frees the allocated buffer memory. 
+ *          Must be called after the data in the frameBuffer has been processed.
+ *
+ *  @param  frameBuffer - pointer to the start of the frameBuffer
+ *  @return bool - TRUE if the deallocation is successful
+ */
 bool Camera_FreeFrameBuffer(camera_fb_t **frameBuffer)
 {
     if (!(*frameBuffer))

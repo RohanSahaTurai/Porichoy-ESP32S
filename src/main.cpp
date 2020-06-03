@@ -1,43 +1,59 @@
+/*!
+ ** @file main.cpp
+ ** @version 1.0
+ ** @brief
+ **         Main module.
+ **         This module contains user's application code.
+ */
+/*!
+ **  @addtogroup main_module main module documentation
+ **  @{
+ */
 #include <Arduino.h>
 #include <WiFi.h>
 #include "LED.hpp"
 #include "Sonar.hpp"
 #include "camera.hpp"
 
-//Maximum packet size = 50 KiB
-#define MQTT_MAX_PACKET_SIZE 51200
-#define MQTT_KEEPALIVE 3600
-#define MQTT_SOCKET_TIMEOUT 1
+#define MQTT_MAX_PACKET_SIZE 51200              /*!< Maximum MQTT packet size in bytes*/
+#define MQTT_KEEPALIVE 3600                     /*!< The keep alive timeout for the MQTT connection in seconds*/
+#define MQTT_SOCKET_TIMEOUT 1                   /*!< The socket timeout for the MQTT connection in seconds*/
 #include <PubSubClient.h>
 
-const char* WIFI_SSID     = "Rohan Hotspot";
-const char* WIFI_PASSWORD = "01747910";
+const char* WIFI_SSID     = "Rohan Hotspot";    /*!< WIFI SSID to connect to*/
+const char* WIFI_PASSWORD = "01747910";         /*!< WIFI Password*/
 
-const char* ServerIP   = "142.93.62.203";
-const char* ClientID   = "Rohan-ESP32CAM";
-const int   PortServer =  1883;
+const char* ServerIP   = "142.93.62.203";       /*!< IP Address of the MQTT Broker*/
+const char* ClientID   = "Rohan-ESP32CAM";      /*!< Client ID of the device*/
+const int   PortServer =  1883;                 /*!< The server port for MQTT Connection*/
 
-const char* MQTT_SUB_TOPIC = "Result";
-const char* MQTT_PUB_TOPIC = "Image";
+const char* MQTT_SUB_TOPIC = "Result";          /*!< Topic the device is subscribed*/
+const char* MQTT_PUB_TOPIC = "Image";           /*!< Topic the device is publishing to*/
 
-const int QoS = 1;
+const int QoS = 1;                              /*!< MQTT Quality of Service*/
 
 //callback function prototype
 void callback(char* topic, byte* payload, unsigned int length);
 
-WiFiClient ESPClient;
-PubSubClient MQTTClient(ServerIP, PortServer, callback, ESPClient);
+WiFiClient ESPClient;                                                 /*!< A WiFi Client to be used by the PubSub Client*/
+PubSubClient MQTTClient(ServerIP, PortServer, callback, ESPClient);   /*!< A PubSub Client for MQTT Connection*/
 
-const int Min_Capture_Dist = 25;   //25cm
-const int Max_Capture_Dist = 40;   //40cm
+const int Min_Capture_Dist = 25;       /*!< Minimum Distance (in cm) an object needs to be to capture image*/
+const int Max_Capture_Dist = 40;       /*!< Maximum Distance (in cm) an object needs to be to capture image*/
 
-const int SampleTime = 500;       //500ms
-const int ACK_TIMEOUT = 30000;     //30000ms = 30s
+const int SampleTime = 500;           /*!< The Sampling Time of the Sonar module (in ms)*/   
+const int ACK_TIMEOUT = 30000;        /*!< Timeout for no response received after image published (in ms)*/
 
-bool Callback_Requested = false;
-bool Callback_Handled  = false;
+bool Callback_Requested = false;             /*!< A flag to track if a callback has been requested*/
+bool Callback_Handled  = false;              /*!< A flag to check if the callback has been handled*/
 
-// Call back function
+
+/*! @brief  Callback function when a message arrives for the subsribed topics
+ *
+ *  @param  topic   - topic for which message has arrived
+ *  @param  payload - the payload of the arrived message
+ *  @param  length  - the length of the message in the payload
+ */
 void callback(char* topic, byte* payload, unsigned int length)
 {
   Serial.println("Message Arrived");
@@ -65,6 +81,10 @@ void callback(char* topic, byte* payload, unsigned int length)
   Callback_Handled = true;
 }
 
+
+/*! @brief  Connects to the WiFi
+ *
+ */
 void WiFi_Connect()
 {
   // Set up WiFi Connection
@@ -84,6 +104,11 @@ void WiFi_Connect()
   Serial.println("\nConnected!");
 }
 
+
+/*! @brief  Connects to MQTT broker
+ *
+ *  @note   Assumes WiFi connection is successful
+ */
 void MQTT_Connect()
 {   
     MQTTClient.disconnect();
@@ -122,6 +147,10 @@ void MQTT_Connect()
 
 }
 
+
+/*! @brief  Initializes all the modules and connects to WiFi and MQTT Broker
+ *  
+ */
 void setup() 
 {
   Serial.begin(115200);
@@ -142,7 +171,11 @@ void setup()
   MQTT_Connect();
 }
 
-/* TODO: WiFi gets disconnected after a while. Fix it */
+
+/*! @brief  The main loop that runs idefinitely
+ *
+ *  @note   Assumes setup() has been called
+ */
 void loop() 
 {
   String buffer;
@@ -219,3 +252,7 @@ void loop()
 
   LED_On(LED_AQUA);
 }
+
+/*!
+** @}
+*/

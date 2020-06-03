@@ -1,5 +1,18 @@
+/*! @file  Sonar.cpp
+ *
+ *  @brief Routines for operating the HC_SR04 sonar module
+ *
+ *  This contains the functions needed for operating the HC_SR04 sonar module
+ *
+ *  @author Rohan
+ *  @date 2020-06-03
+ */
 #include <Sonar.hpp>
 
+/*! @brief Initializes the HC_SR04 Sonar module
+ *
+ *  @return bool - TRUE if initialization is successful
+ */
 bool Sonar_Init()
 {
     pinMode(TRIGGER_PIN, OUTPUT);
@@ -10,6 +23,11 @@ bool Sonar_Init()
     return true;
 }
 
+
+/*! @brief Measures the distance to the object near the device
+ *
+ *  @return int - distance in cm; returns -1 if measurement is invalid
+ */
 int Sonar_GetDistance()
 {
     // Send 10µs pulse

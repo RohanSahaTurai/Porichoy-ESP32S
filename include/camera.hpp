@@ -1,3 +1,19 @@
+/*! @file  camera.hpp
+ *
+ *  @brief Routines for operating the OV2640 camera module
+ *
+ *  This contains the functions needed for operating the camera module in ESP32-CAM
+ *
+ *  @author Rohan
+ *  @date 2020-06-03
+ */
+/*!
+ * @addtogroup Camera_module Camera Module documentation
+ * @{
+ *
+ *  This contains the functions needed for operating the camera module in ESP32-CAM
+ *
+ */
 #ifndef CAMERA_H
 #define CAMERA_H
 
@@ -5,8 +21,7 @@
 #include <esp_camera.h>
 #include <esp32-hal-ledc.h>
 
-// Pin definition for CAMERA_MODEL_AI_THINKER
-#define PWDN_GPIO_NUM     32
+#define PWDN_GPIO_NUM     32                        
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
 #define SIOD_GPIO_NUM     26
@@ -24,22 +39,39 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-// Prefered frame size
 // The frame size will only be activated if PSRAM is detected
 // Otherwise, frame size is dropped to VGA by default
-const framesize_t FRAME_SIZE = FRAMESIZE_SVGA;
+const framesize_t FRAME_SIZE = FRAMESIZE_SVGA;          /*!< Prefered frame size for image capture*/
 
 //Flash configuration
-#define FLASH_PIN   4
-const int FlashBrightness = 10; //0-255, brightest 255
+#define FLASH_PIN   4                                   /*!< The pin to which the internal flash is connected*/
+const int FlashBrightness = 10;                         /*!< The flash brightness; Range 0-255, brightest = 255 */
 
+
+/*! @brief Initializes the camera and the flash 
+ *
+ *  @return bool - TRUE if initialization is successful
+ */
 bool Camera_Init();
 
-// Captures a frame
+
+/*! @brief When the function is called, the camera captures a frame
+ *
+ *  @param  frameBuffer - pointer to the start of the frameBuffer
+ *  @return bool - TRUE if the frame is captured successfully
+ */
 bool Camera_Capture(camera_fb_t **frameBuffer);
 
-// Frees the allocated memory.
-// Must be called after the data in the frameBuffer has been processed.
+
+/*! @brief  Frees the allocated buffer memory. 
+ *          Must be called after the data in the frameBuffer has been processed.
+ *
+ *  @param  frameBuffer - pointer to the start of the frameBuffer
+ *  @return bool - TRUE if the deallocation is successful
+ */
 bool Camera_FreeFrameBuffer(camera_fb_t **frameBuffer);
 
 #endif
+/*!
+ * @}
+ */
