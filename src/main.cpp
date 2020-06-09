@@ -21,24 +21,27 @@
 #include <PubSubClient.h>
 
 //*****************************************************************************
-// Struct for handling MQTT subscribed topics
-//-----------------------------------------------------------------------------
-typedef struct
-{
-  std::string topic;
-  void (*Handler)(byte*, unsigned int);
-
-}Subscribe_t;
-
-
-//*****************************************************************************
-// Function Prototypes
+// Function Prototype
 //-----------------------------------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length);
-void Result_Handler (byte* payload, unsigned int length);
-void AutoCapture_Handler (byte* payload, unsigned int length);
-void ManualCapture_Handler (byte* payload, unsigned int length);
-void WhoAmI_Handler (byte* payload, unsigned int length);
+
+/******************************************************************************
+ * Packet Handler Commands
+ ******************************************************************************/
+#define CMD_AutoCapture   01
+#define CMD_ManualCapture 02
+#define CMD_Range         03
+
+/******************************************************************************
+ * MQTT Received Packet Structure for control topic
+ ******************************************************************************/
+struct 
+{
+  uint8_t command,
+          param1,
+          param2;
+
+} MQTT_Packet;
 
 //*****************************************************************************
 // Global Configurations
@@ -51,8 +54,11 @@ const char* ClientID   = "Rohan-ESP32CAM";      /*!< Client ID of the device*/
 const int   PortServer =  1883;                 /*!< The server port for MQTT Connection*/
 const int QoS = 1;                              /*!< MQTT Quality of Service*/
 
-const int Min_Capture_Dist = 25;                /*!< Minimum Distance (in cm) an object needs to be to capture image*/
-const int Max_Capture_Dist = 40;                /*!< Maximum Distance (in cm) an object needs to be to capture image*/
+#define DEFAULT_MIN_DIST 25
+#define DEFAULT_MAX_DIST 40
+
+volatile int Min_Capture_Dist = DEFAULT_MIN_DIST;             /*!< Minimum Distance (in cm) an object needs to be to capture image*/
+volatile int Max_Capture_Dist = DEFAULT_MAX_DIST;             /*!< Maximum Distance (in cm) an object needs to be to capture image*/
 
 const int SampleTime = 500;                     /*!< The Sampling Time of the Sonar module (in ms)*/   
 const int ACK_TIMEOUT = 30000;                  /*!< Timeout for no response received after image published (in ms)*/
@@ -65,32 +71,9 @@ volatile bool Auto_Capture = true;              /*!< A flag to indicate if auto 
 //*****************************************************************************
 // MQTT Publish and subscribe topics
 //-----------------------------------------------------------------------------
-const char* MQTT_PUB_TOPIC = "Image";           /*!< Topic the device is publishing to*/
-
-#define NB_SUB_TOPICS 4
-
-const Subscribe_t MQTT_SUB_TOPICS[NB_SUB_TOPICS]  =
-{
-  {
-    .topic   = "Result",
-    .Handler = &Result_Handler
-  },
-
-  {
-    .topic   = "Auto_Capture",
-    .Handler = &AutoCapture_Handler
-  },
-
-  {
-    .topic   = "Manual_Capture",
-    .Handler = &ManualCapture_Handler
-  },
-
-  {
-    .topic   = "WhoAmI",
-    .Handler = &WhoAmI_Handler
-  }
-};
+const char* MQTT_PUB_TOPIC     = "Image";       /*!< Topic the device is publishing to*/
+const char* MQTT_RESULT_TOPIC  = "Result";
+const char* MQTT_CONTROL_TOPIC = "Control";
 
 //*****************************************************************************
 // Global Objects
@@ -103,7 +86,7 @@ PubSubClient MQTTClient(ServerIP, PortServer, callback, ESPClient);   /*!< A Pub
  *
  *  @param  topic   topic to publish the frame buffer
  */
-static inline bool Capture_n_Publish(const char* topic)
+static inline bool Capture_n_Publish()
 {
   camera_fb_t *fb = NULL;
   
@@ -115,7 +98,7 @@ static inline bool Capture_n_Publish(const char* topic)
     Serial.println("Size = "+ String(fbSize)+" bytes");
 
     // Start Publishing
-    MQTTClient.beginPublish(topic, fbSize, false);
+    MQTTClient.beginPublish(MQTT_PUB_TOPIC, fbSize, false);
     // Write the frame buffer content in the packet 
     MQTTClient.write(fbPayload, fbSize);
     // Check if the the publishing is finsied
@@ -130,11 +113,15 @@ static inline bool Capture_n_Publish(const char* topic)
   return false;
 }
 
-static inline void Capture_n_Recognize (const char* topic)
+/*! @brief  Camera captures a frame, publishes the image and handles the response
+ *
+ *  @param  topic   topic to publish the frame buffer
+ */
+static inline void Capture_n_Recognize ()
 {
   LED_On(LED_WHITE);
 
-  if (Capture_n_Publish(MQTT_PUB_TOPIC))
+  if (Capture_n_Publish())
   {        
     // Request and poll for a callback
     Callback_Requested = true;
@@ -167,7 +154,7 @@ static inline void Capture_n_Recognize (const char* topic)
 //*****************************************************************************
 // Call back functions and handlers
 //-----------------------------------------------------------------------------
-void Result_Handler (byte* payload, unsigned int length)
+static inline void Result_Handler (byte* payload, unsigned int length)
 {
   // Don't process the callback if not requested.
   // This protects from unwanted messages received
@@ -188,52 +175,72 @@ void Result_Handler (byte* payload, unsigned int length)
   Callback_Handled = true;
 }
 
-
-void AutoCapture_Handler (byte* payload, unsigned int length)
+static inline void AutoCapture_Handler ()
 {
-  std::string response((char*)payload, length);
-
-  Serial.println("Message: " + String(response.c_str()));
-
-  // if the length is incorrect, ignore
-  if (length != 1)
-    return;
-
-  if (response[0] == '0')
+  if (MQTT_Packet.param1 == 0)
   {
     Auto_Capture = false;
     Serial.println("Auto Capture Turned off");
   }
-    
-  else if (response[0] == '1')
+
+  else if (MQTT_Packet.param1 == 1)
   {
     Auto_Capture = true;
     Serial.println("Auto Capture Turned on");
   }
+
+  else
+    Serial.println("Invalid Parameters");
+  
 }
 
-
-void ManualCapture_Handler (byte* payload, unsigned int length)
+static inline void ManualCapture_Handler ()
 {
-  std::string response((char*)payload, length);
+  if (MQTT_Packet.param1 == 0)
+    Capture_n_Publish();
 
-  Serial.println("Message: " + String(response.c_str()));
-
-  if (!strcmp(response.c_str(), "Capture Now!"))
-    Capture_n_Publish(MQTT_PUB_TOPIC);
+  else if (MQTT_Packet.param1 == 1)
+    Capture_n_Recognize();
+  
+  else
+    Serial.println("Invalid Parameters");
 }
 
-void WhoAmI_Handler (byte* payload, unsigned int length)
+static inline void Range_Handler()
 {
-  std::string response((char*)payload, length);
+  //TODO: Validation Check
 
-  Serial.println("Message: " + String(response.c_str()));
+  if (MQTT_Packet.param1 != 0)
+  {
+    if (MQTT_Packet.param1 == 99)
+    {
+      Min_Capture_Dist = DEFAULT_MIN_DIST;
+      Serial.println("DEFAULT MIN LOADED");
+    }
+    
+    else if (MQTT_Packet.param1 >= 20 && MQTT_Packet.param1 <= 40)
+    {
+      Min_Capture_Dist = MQTT_Packet.param1;
+      Serial.println("New Min Distance = " + MQTT_Packet.param1);
+    }
+  }
 
-  if (!strcmp(response.c_str(), "who Am I?"))
-    Capture_n_Recognize(MQTT_PUB_TOPIC);
+  if (MQTT_Packet.param2 != 0)
+  {
+    if (MQTT_Packet.param2 == 99)
+    {
+      Max_Capture_Dist = DEFAULT_MAX_DIST;
+      Serial.println("DEFAULT MAX LOADED");
+    }
+    
+    else if (MQTT_Packet.param2 >= 20 && MQTT_Packet.param2 <= 60)
+    {
+      Max_Capture_Dist = MQTT_Packet.param2;
+      Serial.println("New Max Distance = " + MQTT_Packet.param2);
+    }
+  } 
 
 }
-
 
 /*! @brief  Callback function when a message arrives for the subsribed topics
  *
@@ -243,17 +250,46 @@ void WhoAmI_Handler (byte* payload, unsigned int length)
  */
 void callback(char* topic, byte* payload, unsigned int length)
 {
-  Serial.println("Message Arrived");
+  Serial.println("Message Arrived\nTopic: " + String(topic));
 
-  for (int i = 0; i < NB_SUB_TOPICS; i++)
-    // Handle the callback for each topic
-    if (!strcmp(topic, MQTT_SUB_TOPICS[i].topic.c_str()))
-    { 
-      Serial.println("Topic:" + String(topic));
-      
-      MQTT_SUB_TOPICS[i].Handler(payload, length);
-      break;
+  if (!strcmp(topic, MQTT_RESULT_TOPIC))
+    Result_Handler(payload, length);
+
+  else if (!strcmp(topic, MQTT_CONTROL_TOPIC))
+  {
+    // a valid packet size is 6 bytes
+    if (length != 6)
+    {
+      Serial.println("Invalid Packet");
+      return;
     }
+
+    Serial.println(std::string((char*) payload, 6).c_str());
+
+    std::string buffer = std::string((char*) payload, 0, 2);
+    MQTT_Packet.command = (uint8_t) strtoul(buffer.c_str(), NULL, 10);
+
+    buffer = std::string((char*) payload, 2, 2);
+    MQTT_Packet.param1 = (uint8_t) strtoul(buffer.c_str(), NULL, 10);
+    
+    buffer = std::string((char*) payload, 4, 2);
+    MQTT_Packet.param2 = (uint8_t) strtoul(buffer.c_str(), NULL, 10);
+
+    switch (MQTT_Packet.command)
+    {
+      case CMD_AutoCapture:
+        AutoCapture_Handler();
+        break;
+
+      case CMD_ManualCapture:
+        ManualCapture_Handler();
+        break;
+      
+      case CMD_Range:
+        Range_Handler();
+        break;
+    }
+  }
 }
 
 
@@ -309,21 +345,16 @@ void MQTT_Connect()
         }
     }
 
-    // Subscribe to all the topics
-    for (int i = 0; i < NB_SUB_TOPICS; i++)
-    {
-      char* topic = (char*) MQTT_SUB_TOPICS[i].topic.c_str();
+    // Subsribe to the topics
+    Serial.println("\nSubscribing to Topic: " + String(MQTT_RESULT_TOPIC));
 
-      Serial.println("\nSubscribing to Topic: " + String(topic));
+    while (!MQTTClient.subscribe(MQTT_RESULT_TOPIC, QoS));
 
-      while (!MQTTClient.subscribe(topic, QoS))
-      {
-        Serial.print(".");
-        delay(500);
-      }
-    }
+    Serial.println("Subscribing to Topic: " + String(MQTT_CONTROL_TOPIC));
 
-    Serial.println("\nSuscribed Successfully to " + String(NB_SUB_TOPICS) + " topics");
+    while (!MQTTClient.subscribe(MQTT_CONTROL_TOPIC, QoS));
+
+    Serial.println("Subscribed Successfully\n");
 }
 
 
@@ -375,7 +406,7 @@ void loop()
   // Check if distance is within the capture range if auto capture is enabled
   if (Auto_Capture && 
       distance >= Min_Capture_Dist && distance <= Max_Capture_Dist)
-    Capture_n_Recognize(MQTT_PUB_TOPIC);
+    Capture_n_Recognize();
 
   MQTTClient.loop();
 
