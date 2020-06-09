@@ -36,6 +36,9 @@ typedef struct
 //-----------------------------------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length);
 void Result_Handler (byte* payload, unsigned int length);
+void AutoCapture_Handler (byte* payload, unsigned int length);
+void ManualCapture_Handler (byte* payload, unsigned int length);
+void WhoAmI_Handler (byte* payload, unsigned int length);
 
 //*****************************************************************************
 // Global Configurations
@@ -64,17 +67,30 @@ volatile bool Auto_Capture = true;              /*!< A flag to indicate if auto 
 //-----------------------------------------------------------------------------
 const char* MQTT_PUB_TOPIC = "Image";           /*!< Topic the device is publishing to*/
 
-#define NB_SUB_TOPICS 1
+#define NB_SUB_TOPICS 4
 
 const Subscribe_t MQTT_SUB_TOPICS[NB_SUB_TOPICS]  =
 {
   {
-    .topic = "Result",
+    .topic   = "Result",
     .Handler = &Result_Handler
+  },
+
+  {
+    .topic   = "Auto_Capture",
+    .Handler = &AutoCapture_Handler
+  },
+
+  {
+    .topic   = "Manual_Capture",
+    .Handler = &ManualCapture_Handler
+  },
+
+  {
+    .topic   = "WhoAmI",
+    .Handler = &WhoAmI_Handler
   }
 };
-const char* MQTT_SUB_TOPIC = "Result";          /*!< Topic the device is subscribed*/
-
 
 //*****************************************************************************
 // Global Objects
@@ -114,6 +130,40 @@ static inline bool Capture_n_Publish(const char* topic)
   return false;
 }
 
+static inline void Capture_n_Recognize (const char* topic)
+{
+  LED_On(LED_WHITE);
+
+  if (Capture_n_Publish(MQTT_PUB_TOPIC))
+  {        
+    // Request and poll for a callback
+    Callback_Requested = true;
+    unsigned long int startTime = millis();
+
+    // Wait for acknowledgement upto the timeout period
+    Serial.println("Waiting for response...");
+    while(!Callback_Handled)
+    {
+      MQTTClient.loop();
+
+      //after timeout turn LED Red
+      if (millis() - startTime >= ACK_TIMEOUT)
+      {
+        Serial.println("Timeout...");
+        LED_On(LED_RED);
+        break;
+      }
+    }
+
+    // reset the flag
+    Callback_Handled = false;
+    Callback_Requested = false;
+
+    // delay at least 5 seconds before next frame is captured
+    delay(5000);
+  }
+}
+
 //*****************************************************************************
 // Call back functions and handlers
 //-----------------------------------------------------------------------------
@@ -136,6 +186,52 @@ void Result_Handler (byte* payload, unsigned int length)
 
   // set the flag to indicate callback handled
   Callback_Handled = true;
+}
+
+
+void AutoCapture_Handler (byte* payload, unsigned int length)
+{
+  std::string response((char*)payload, length);
+
+  Serial.println("Message: " + String(response.c_str()));
+
+  // if the length is incorrect, ignore
+  if (length != 1)
+    return;
+
+  if (response[0] == '0')
+  {
+    Auto_Capture = false;
+    Serial.println("Auto Capture Turned off");
+  }
+    
+  else if (response[0] == '1')
+  {
+    Auto_Capture = true;
+    Serial.println("Auto Capture Turned on");
+  }
+}
+
+
+void ManualCapture_Handler (byte* payload, unsigned int length)
+{
+  std::string response((char*)payload, length);
+
+  Serial.println("Message: " + String(response.c_str()));
+
+  if (!strcmp(response.c_str(), "Capture Now!"))
+    Capture_n_Publish(MQTT_PUB_TOPIC);
+}
+
+void WhoAmI_Handler (byte* payload, unsigned int length)
+{
+  std::string response((char*)payload, length);
+
+  Serial.println("Message: " + String(response.c_str()));
+
+  if (!strcmp(response.c_str(), "who Am I?"))
+    Capture_n_Recognize(MQTT_PUB_TOPIC);
+
 }
 
 
@@ -267,7 +363,10 @@ void loop()
   if (!MQTTClient.connected())
     MQTT_Connect();
 
-  LED_On(LED_BLUE);
+  if (Auto_Capture)
+    LED_On(LED_BLUE);
+  else
+    LED_On(LED_PURPLE);
 
   int distance = Sonar_GetDistance();
   
@@ -276,38 +375,7 @@ void loop()
   // Check if distance is within the capture range if auto capture is enabled
   if (Auto_Capture && 
       distance >= Min_Capture_Dist && distance <= Max_Capture_Dist)
-  {
-      LED_On(LED_WHITE);
-
-      if (Capture_n_Publish(MQTT_PUB_TOPIC))
-      {        
-        // Request and poll for a callback
-        Callback_Requested = true;
-        unsigned long int startTime = millis();
-
-        // Wait for acknowledgement upto the timeout period
-        Serial.println("Waiting for response...");
-        while(!Callback_Handled)
-        {
-          MQTTClient.loop();
-
-          //after timeout turn LED Red
-          if (millis() - startTime >= ACK_TIMEOUT)
-          {
-            Serial.println("Timeout...");
-            LED_On(LED_RED);
-            break;
-          }
-        }
-
-        // reset the flag
-        Callback_Handled = false;
-        Callback_Requested = false;
-
-        // delay at least 5 seconds before next frame is captured
-        delay(5000);
-      }
-  }
+    Capture_n_Recognize(MQTT_PUB_TOPIC);
 
   MQTTClient.loop();
 
