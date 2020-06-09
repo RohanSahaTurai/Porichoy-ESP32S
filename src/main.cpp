@@ -20,32 +20,123 @@
 #define MQTT_SOCKET_TIMEOUT 1                   /*!< The socket timeout for the MQTT connection in seconds*/
 #include <PubSubClient.h>
 
+//*****************************************************************************
+// Struct for handling MQTT subscribed topics
+//-----------------------------------------------------------------------------
+typedef struct
+{
+  std::string topic;
+  void (*Handler)(byte*, unsigned int);
+
+}Subscribe_t;
+
+
+//*****************************************************************************
+// Function Prototypes
+//-----------------------------------------------------------------------------
+void callback(char* topic, byte* payload, unsigned int length);
+void Result_Handler (byte* payload, unsigned int length);
+
+//*****************************************************************************
+// Global Configurations
+//-----------------------------------------------------------------------------
 const char* WIFI_SSID     = "Rohan Hotspot";    /*!< WIFI SSID to connect to*/
 const char* WIFI_PASSWORD = "01747910";         /*!< WIFI Password*/
 
 const char* ServerIP   = "142.93.62.203";       /*!< IP Address of the MQTT Broker*/
 const char* ClientID   = "Rohan-ESP32CAM";      /*!< Client ID of the device*/
 const int   PortServer =  1883;                 /*!< The server port for MQTT Connection*/
-
-const char* MQTT_SUB_TOPIC = "Result";          /*!< Topic the device is subscribed*/
-const char* MQTT_PUB_TOPIC = "Image";           /*!< Topic the device is publishing to*/
-
 const int QoS = 1;                              /*!< MQTT Quality of Service*/
 
-//callback function prototype
-void callback(char* topic, byte* payload, unsigned int length);
+const int Min_Capture_Dist = 25;                /*!< Minimum Distance (in cm) an object needs to be to capture image*/
+const int Max_Capture_Dist = 40;                /*!< Maximum Distance (in cm) an object needs to be to capture image*/
 
+const int SampleTime = 500;                     /*!< The Sampling Time of the Sonar module (in ms)*/   
+const int ACK_TIMEOUT = 30000;                  /*!< Timeout for no response received after image published (in ms)*/
+
+bool Callback_Requested = false;                /*!< A flag to track if a callback has been requested*/
+bool Callback_Handled  = false;                 /*!< A flag to check if the callback has been handled*/
+
+volatile bool Auto_Capture = true;              /*!< A flag to indicate if auto capture mode is enabled. It can be changed via MQTT command*/
+
+//*****************************************************************************
+// MQTT Publish and subscribe topics
+//-----------------------------------------------------------------------------
+const char* MQTT_PUB_TOPIC = "Image";           /*!< Topic the device is publishing to*/
+
+#define NB_SUB_TOPICS 1
+
+const Subscribe_t MQTT_SUB_TOPICS[NB_SUB_TOPICS]  =
+{
+  {
+    .topic = "Result",
+    .Handler = &Result_Handler
+  }
+};
+const char* MQTT_SUB_TOPIC = "Result";          /*!< Topic the device is subscribed*/
+
+
+//*****************************************************************************
+// Global Objects
+//-----------------------------------------------------------------------------
 WiFiClient ESPClient;                                                 /*!< A WiFi Client to be used by the PubSub Client*/
 PubSubClient MQTTClient(ServerIP, PortServer, callback, ESPClient);   /*!< A PubSub Client for MQTT Connection*/
 
-const int Min_Capture_Dist = 25;       /*!< Minimum Distance (in cm) an object needs to be to capture image*/
-const int Max_Capture_Dist = 40;       /*!< Maximum Distance (in cm) an object needs to be to capture image*/
 
-const int SampleTime = 500;           /*!< The Sampling Time of the Sonar module (in ms)*/   
-const int ACK_TIMEOUT = 30000;        /*!< Timeout for no response received after image published (in ms)*/
+/*! @brief  Camera captures an image and publishes to a given topic via MQTT
+ *
+ *  @param  topic   topic to publish the frame buffer
+ */
+static inline bool Capture_n_Publish(const char* topic)
+{
+  camera_fb_t *fb = NULL;
+  
+  if (Camera_Capture(&fb))
+  {
+    const uint8_t* fbPayload = (uint8_t*)fb->buf;
+    size_t fbSize = fb->len;
 
-bool Callback_Requested = false;             /*!< A flag to track if a callback has been requested*/
-bool Callback_Handled  = false;              /*!< A flag to check if the callback has been handled*/
+    Serial.println("Size = "+ String(fbSize)+" bytes");
+
+    // Start Publishing
+    MQTTClient.beginPublish(topic, fbSize, false);
+    // Write the frame buffer content in the packet 
+    MQTTClient.write(fbPayload, fbSize);
+    // Check if the the publishing is finsied
+    if (MQTTClient.endPublish())
+        Serial.println("Frame Sent!");
+    
+    Camera_FreeFrameBuffer(&fb);
+
+    return true;
+  }
+
+  return false;
+}
+
+//*****************************************************************************
+// Call back functions and handlers
+//-----------------------------------------------------------------------------
+void Result_Handler (byte* payload, unsigned int length)
+{
+  // Don't process the callback if not requested.
+  // This protects from unwanted messages received
+  if (!Callback_Requested)
+    return;
+
+  std::string response((char*)payload, length);
+
+  Serial.println("Response: " + String(response.c_str()));
+
+  if (!response.find("NO MATCH"))
+    LED_On(LED_RED);
+
+  else
+    LED_On(LED_GREEN);
+
+  // set the flag to indicate callback handled
+  Callback_Handled = true;
+}
 
 
 /*! @brief  Callback function when a message arrives for the subsribed topics
@@ -58,27 +149,15 @@ void callback(char* topic, byte* payload, unsigned int length)
 {
   Serial.println("Message Arrived");
 
-  // Don't process the callback if not requested.
-  // This protects from unwanted messages received
-  if (!Callback_Requested)
-    return;
-
-  // Handle the callback for each topic
-  if (!strcmp(topic, MQTT_SUB_TOPIC))
-  {
-    std::string response((char*)payload, length);
-
-    Serial.println("Response: " + String(response.c_str()));
-
-    if (!response.find("NO MATCH" ))
-      LED_On(LED_RED);
-    
-    else
-      LED_On(LED_GREEN);
-  }
-
-  // set the flag to indicate callback handled
-  Callback_Handled = true;
+  for (int i = 0; i < NB_SUB_TOPICS; i++)
+    // Handle the callback for each topic
+    if (!strcmp(topic, MQTT_SUB_TOPICS[i].topic.c_str()))
+    { 
+      Serial.println("Topic:" + String(topic));
+      
+      MQTT_SUB_TOPICS[i].Handler(payload, length);
+      break;
+    }
 }
 
 
@@ -134,17 +213,21 @@ void MQTT_Connect()
         }
     }
 
-    // Subscribe to receive acknowledgements
-    Serial.println("Subscribing to Topic: " + String(MQTT_SUB_TOPIC));
-
-    while (!MQTTClient.subscribe(MQTT_SUB_TOPIC, QoS))
+    // Subscribe to all the topics
+    for (int i = 0; i < NB_SUB_TOPICS; i++)
     {
-      Serial.print(".");
-      delay(500);
+      char* topic = (char*) MQTT_SUB_TOPICS[i].topic.c_str();
+
+      Serial.println("\nSubscribing to Topic: " + String(topic));
+
+      while (!MQTTClient.subscribe(topic, QoS))
+      {
+        Serial.print(".");
+        delay(500);
+      }
     }
 
-    Serial.println("Suscribed Successfully");
-
+    Serial.println("\nSuscribed Successfully to " + String(NB_SUB_TOPICS) + " topics");
 }
 
 
@@ -178,9 +261,6 @@ void setup()
  */
 void loop() 
 {
-  String buffer;
-  camera_fb_t *fb = NULL;
-
   // Check if the WiFi and MQTT broker is still connected
   if (WiFi.status() != WL_CONNECTED)
     WiFi_Connect();
@@ -191,35 +271,19 @@ void loop()
 
   int distance = Sonar_GetDistance();
   
-  buffer = "Distance = " + String(distance) + " cm";
-  
-  Serial.println(buffer);
+  Serial.println("Distance = " + String(distance) + " cm");
 
-  // Check if distance is within the capture range
-  if (distance >= Min_Capture_Dist && distance <= Max_Capture_Dist)
+  // Check if distance is within the capture range if auto capture is enabled
+  if (Auto_Capture && 
+      distance >= Min_Capture_Dist && distance <= Max_Capture_Dist)
   {
       LED_On(LED_WHITE);
 
-      if (Camera_Capture(&fb))
-      {
-        const uint8_t* fbPayload = (uint8_t*)fb->buf;
-        size_t fbSize = fb->len;
-
-        Serial.println("Size = "+ String(fbSize)+" bytes");
-
-        // Start Publishing
-        MQTTClient.beginPublish(MQTT_PUB_TOPIC, fbSize, false);
-        // Write the frame buffer content in the packet 
-        MQTTClient.write(fbPayload, fbSize);
-        // Check if the the publishing is finsied
-        if (MQTTClient.endPublish())
-           Serial.println("Frame Sent!");
-        
+      if (Capture_n_Publish(MQTT_PUB_TOPIC))
+      {        
         // Request and poll for a callback
         Callback_Requested = true;
         unsigned long int startTime = millis();
-
-        Camera_FreeFrameBuffer(&fb);
 
         // Wait for acknowledgement upto the timeout period
         Serial.println("Waiting for response...");
@@ -252,7 +316,6 @@ void loop()
 
   LED_On(LED_AQUA);
 }
-
 /*!
 ** @}
 */

@@ -23,7 +23,7 @@
 // pin definitions of LED colours
 #define BLUE_PIN    2                /*!< ESP32CAM Pin to which the RGB LED BLUE pin is connected*/
 #define GREEN_PIN   14               /*!< ESP32CAM Pin to which the RGB LED Green pin is connected*/
-#define RED_PIN     15               /*!< ESP32CAM Pin to which the RGB LED Red pin is connected*/
+#define RED_PIN     13                /*!< ESP32CAM Pin to which the RGB LED Red pin is connected*/
 
 /*! @brief RGB components of colours
  *
